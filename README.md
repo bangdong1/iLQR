@@ -4,12 +4,42 @@
 - Supports inequality constraints on control inputs or state variables via barrier functions.
 - with [Numba](https://numba.pydata.org) acceleration - 20x faster than native python code.
 
-#### Dependencies
-- sympy, numpy, numba, matplotlib
+> Forked from [Bharath2/iLQR](https://github.com/Bharath2/iLQR).
+> Additions in this fork: lane-joining (`examples/join.py`) and head-on
+> avoidance (`examples/oncoming_avoid.py`) scenarios, plus a fix to the
+> vehicle-rectangle rotation in the visualization.
 
-#### [vehicle control example](./examples/vehicle_control.py)
-![image](./imgs/overtake.gif)
-![image](./imgs/join.gif)
+#### Dependencies
+- numpy, scipy, numba, sympy, matplotlib
+
+## Installation
+```bash
+git clone https://github.com/bangdong1/iLQR.git
+cd iLQR
+pip install -e .
+```
+After installing, `ilqr` is importable from anywhere and the examples run directly
+(no need to set `PYTHONPATH`).
+
+## Run examples
+```bash
+python examples/vehicle_control.py   # overtaking
+python examples/oncoming_avoid.py    # head-on avoidance
+python examples/join.py              # lane joining / merging
+```
+
+#### [vehicle control examples](./examples)
+Overtaking — ego speeds up and passes a slower vehicle ahead:
+
+![overtake](./imgs/overtake.gif)
+
+Lane joining — ego starts beside the other vehicle, slows down, and merges in behind it:
+
+![join](./imgs/join_merge.gif)
+
+Head-on avoidance — ego swerves into the other lane to dodge an oncoming vehicle, then returns:
+
+![oncoming](./imgs/oncoming.gif)
 
 ## Usage
 ```python
@@ -167,6 +197,8 @@ xs, us, cost_trace = controller.fit(x0, us_init)
 Note: The first run is slower since numba has to compile the functions. Some parameters of iLQR controller can customised as per your needs (Look at the code for more info)
 
 #### Let's look at the results
+Reproduce these plots with [examples/double_integrator.py](./examples/double_integrator.py).
+
 Displacement and Force applied with out constraint on force.
 ![image](./imgs/withoutconstraint.png)
 

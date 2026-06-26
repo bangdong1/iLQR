@@ -5,7 +5,7 @@ import sympy as sp
 import numpy as np
 
 from ilqr import iLQR
-from ilqr.utils import GetSyms, Constrain
+from ilqr.utils import GetSyms, Constrain, Bounded
 from ilqr.containers import Dynamics, Cost
 
 #state and action dimensions

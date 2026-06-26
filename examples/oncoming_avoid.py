@@ -1,6 +1,9 @@
 '''
- Vehicle Overtaking
- Adjust cost and initial state to get desired behaviors
+ Oncoming vehicle avoidance (head-on)
+ Ego drives in its lane (y = 1.5). An oncoming vehicle approaches in the SAME
+ lane from ahead (heading = pi, moving in -x). Ego must swerve into the other
+ lane to let it pass, then return to its original lane.
+ Adjust cost and initial state to get desired behaviors.
 '''
 
 import sympy as sp
@@ -32,24 +35,24 @@ state, action = GetSyms(n_x, n_u)
 state_dot = sp.Matrix([0.0]*n_x)
 # ego vehicle kinematics
 state_dot[:5, :] = vehicle_kinematics(state[:5], action)
-# other vehicle kinematics (constant velocity and steering)
+# oncoming vehicle kinematics (constant velocity and steering)
 state_dot[5:, :] = vehicle_kinematics(state[5:], [0, 0])
 #construct
 dynamics = Dynamics.SymContinuous(state_dot, state, action)
 
 
-#Construct cost to overtake
+#Construct cost to avoid the oncoming vehicle
 px1, py1, heading1, vel1, steer1 = state[:5]
 px2, py2, heading2, vel2, steer2 = state[5:]
-#cost for reference lane
+#cost for reference lane (low weight so ego is willing to leave the lane to dodge)
 L = 0.2*(py1 - 1.5)**2
-#cost on velocity
+#cost on velocity (keep moving forward at speed 2)
 L += (vel1*sp.cos(heading1) - 2)**2 + (vel1 - 2)**2
 #penality on actions
 L += 0.1*action[1]**2 + 0.1*action[0]**2
 
-#collision avoidance (do not cross ellipse around the vehicle)
-L += SoftConstrain([((px1 - px2)/4.5)**2 + ((py1 - py2)/2)**2 - 1])
+#collision avoidance: large margin so it dodges early and wide
+L += SoftConstrain([((px1 - px2)/6.0)**2 + ((py1 - py2)/3.0)**2 - 1])
 #constrain steering angle and y-position
 L += Bounded([py1, steer1], high = [2.5, 0.523], low = [-2.5, -0.523])
 #construct
@@ -60,19 +63,21 @@ controller = iLQR(dynamics, cost)
 #prediction Horizon
 N = 200
 #initial state
-x0 = np.array([0, 1.5, 0, 1, 0,
-               4, 1.5, 0, 1, 0])
+# ego : starts at x=0, lane y=1.5, heading 0 (going +x), speed 2
+# oncoming : head-on in the SAME lane y=1.5, x=20, heading pi (going -x), speed 2
+# -> if ego does nothing they collide head-on around the middle
+x0 = np.array([0,  1.5, 0,        2, 0,
+               20, 1.5, np.pi,    2, 0])
 #initil guess
 us_init = np.random.randn(N, n_u)*0.0001
 #get optimal states and actions
 xs, us, cost_trace = controller.fit(x0, us_init, 100)
 
-#visualize the overtaking scenario
+#visualize the oncoming-avoidance scenario
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.animation import FuncAnimation
 from matplotlib.transforms import Affine2D
-import numpy as np
 
 def visualize(xs):
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -99,7 +104,7 @@ def visualize(xs):
     ax.add_patch(other_rect)
 
     ego_trajectory, = ax.plot([], [], 'r-', label='Ego vehicle trajectory')
-    other_trajectory, = ax.plot([], [], 'g-', label='Other vehicle trajectory')
+    other_trajectory, = ax.plot([], [], 'g-', label='Oncoming vehicle trajectory')
 
     def place(rect, cx, cy, angle_deg, length, width):
         # anchor bottom-left at (-length/2, -width/2), rotate about origin,
@@ -130,7 +135,7 @@ def visualize(xs):
 
     plt.xlabel('X position')
     plt.ylabel('Y position')
-    plt.title('Vehicle Overtaking Visualization with Trajectories')
+    plt.title('Oncoming Vehicle Avoidance with Trajectories')
     plt.legend()
     plt.grid(True)
     plt.show()

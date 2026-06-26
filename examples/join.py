@@ -1,6 +1,10 @@
 '''
- Vehicle Overtaking
- Adjust cost and initial state to get desired behaviors
+ Lane joining / merging
+ Ego starts in the lower lane (y = 0) and wants to merge into the main lane
+ (y = 1.5). Another vehicle cruises in the main lane just ahead. Ego must
+ adjust its speed and steering to slot in BEHIND the other vehicle, then
+ settle into the main lane.
+ Adjust cost and initial state to get desired behaviors.
 '''
 
 import sympy as sp
@@ -38,18 +42,20 @@ state_dot[5:, :] = vehicle_kinematics(state[5:], [0, 0])
 dynamics = Dynamics.SymContinuous(state_dot, state, action)
 
 
-#Construct cost to overtake
+#Construct cost: slow down, then merge behind the other vehicle
 px1, py1, heading1, vel1, steer1 = state[:5]
 px2, py2, heading2, vel2, steer2 = state[5:]
-#cost for reference lane
-L = 0.2*(py1 - 1.5)**2
-#cost on velocity
-L += (vel1*sp.cos(heading1) - 2)**2 + (vel1 - 2)**2
+#cost for target lane (ego wants to join the other vehicle's lane y = 1.5)
+L = 0.5*(py1 - 1.5)**2
+#cost on velocity: ego target speed 1.3 (slower than other's 2 -> drops back)
+L += (vel1 - 1.3)**2
+#want to stay roughly one car-length BEHIND the other vehicle (px2 - px1 ~ 4)
+L += 0.2*((px2 - px1) - 4)**2
 #penality on actions
 L += 0.1*action[1]**2 + 0.1*action[0]**2
 
-#collision avoidance (do not cross ellipse around the vehicle)
-L += SoftConstrain([((px1 - px2)/4.5)**2 + ((py1 - py2)/2)**2 - 1])
+#collision avoidance (do not cross ellipse around the other vehicle)
+L += SoftConstrain([((px1 - px2)/5.0)**2 + ((py1 - py2)/2.0)**2 - 1])
 #constrain steering angle and y-position
 L += Bounded([py1, steer1], high = [2.5, 0.523], low = [-2.5, -0.523])
 #construct
@@ -60,19 +66,21 @@ controller = iLQR(dynamics, cost)
 #prediction Horizon
 N = 200
 #initial state
-x0 = np.array([0, 1.5, 0, 1, 0,
-               4, 1.5, 0, 1, 0])
+# ego   : lower lane y=0,   x=0, heading 0, speed 2   (almost side-by-side)
+# other : upper lane y=1.5, x=0, heading 0, speed 2   (cruising forward)
+# -> ego slows down, drops back, then merges in behind the other vehicle
+x0 = np.array([0, 0,   0, 2, 0,
+               0, 1.5, 0, 2, 0])
 #initil guess
 us_init = np.random.randn(N, n_u)*0.0001
 #get optimal states and actions
 xs, us, cost_trace = controller.fit(x0, us_init, 100)
 
-#visualize the overtaking scenario
+#visualize the merging scenario
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 from matplotlib.animation import FuncAnimation
 from matplotlib.transforms import Affine2D
-import numpy as np
 
 def visualize(xs):
     fig, ax = plt.subplots(figsize=(12, 6))
@@ -130,7 +138,7 @@ def visualize(xs):
 
     plt.xlabel('X position')
     plt.ylabel('Y position')
-    plt.title('Vehicle Overtaking Visualization with Trajectories')
+    plt.title('Lane Joining / Merging Visualization with Trajectories')
     plt.legend()
     plt.grid(True)
     plt.show()
